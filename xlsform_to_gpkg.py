@@ -889,6 +889,61 @@ def _is_select_multiple(question: Question | None) -> bool:
     return _question_base_type(question.question_type) == "select_multiple"
 
 
+def _is_image(question: Question | None) -> bool:
+    if question is None:
+        return False
+    return _question_base_type(question.question_type) == "image"
+
+
+def _external_resource_widget_config() -> dict[str, object]:
+    return {
+        "DocumentViewer": 1,
+        "DocumentViewerHeight": 0,
+        "DocumentViewerWidth": 0,
+        "FileWidget": True,
+        "FileWidgetButton": True,
+        "FileWidgetFilter": "Images (*.png *.jpg *.jpeg *.bmp);;All files (*.*)",
+        "PropertyCollection": {"name": "collection", "properties": {}, "type": "collection"},
+        "RelativeStorage": 1,
+        "StorageAuthConfigId": "",
+        "StorageMode": 0,
+        "StorageType": 0,
+        "UseLink": False,
+        "DefaultRoot": "",
+    }
+
+
+def _append_external_resource_xml_config(option_root: ET.Element) -> None:
+    cfg = _external_resource_widget_config()
+    for key, value in cfg.items():
+        if isinstance(value, bool):
+            ET.SubElement(
+                option_root,
+                "Option",
+                {"name": key, "type": "bool", "value": "true" if value else "false"},
+            )
+        elif isinstance(value, int):
+            ET.SubElement(
+                option_root,
+                "Option",
+                {"name": key, "type": "int", "value": str(value)},
+            )
+        elif isinstance(value, dict):
+            if key == "PropertyCollection":
+                coll = ET.SubElement(option_root, "Option", {"name": key, "type": "Map"})
+                ET.SubElement(coll, "Option", {"name": "name", "type": "QString", "value": "collection"})
+                ET.SubElement(coll, "Option", {"name": "properties"})
+                ET.SubElement(coll, "Option", {"name": "type", "type": "QString", "value": "collection"})
+            else:
+                ET.SubElement(option_root, "Option", {"name": key, "type": "Map"})
+        else:
+            ET.SubElement(
+                option_root,
+                "Option",
+                {"name": key, "type": "QString", "value": str(value)},
+            )
+
+
 def _append_field_configuration(
     maplayer: ET.Element,
     schema: LayerSchema,
@@ -905,7 +960,9 @@ def _append_field_configuration(
         field_el = ET.SubElement(field_config, "field", {"name": field.name, "configurationFlags": "NoFlag"})
         widget_type = "TextEdit"
 
-        if question and question.list_name and question.list_name in choices:
+        if _is_image(question):
+            widget_type = "ExternalResource"
+        elif question and question.list_name and question.list_name in choices:
             widget_type = "ValueMap"
 
         edit_widget = ET.SubElement(field_el, "editWidget", {"type": widget_type})
@@ -935,6 +992,8 @@ def _append_field_configuration(
                         "value": "true",
                     },
                 )
+        elif widget_type == "ExternalResource":
+            _append_external_resource_xml_config(option_root)
 
 
 def _qgs_vector_maplayer(
@@ -1032,8 +1091,7 @@ def _write_qgis_project_pyqgis(
             if not lookup_layer.isValid():
                 return False
             project.addMapLayer(lookup_layer, False)
-            lookup_node = root.addLayer(lookup_layer)
-            lookup_node.setItemVisibilityChecked(False)
+            root.addLayer(lookup_layer)
             value_relation_layers[list_name] = lookup_layer.id()
 
         for schema in schemas:
@@ -1057,6 +1115,11 @@ def _write_qgis_project_pyqgis(
                     layer.setFieldAlias(idx, q.label)
                 if q and q.list_name and q.list_name in choices:
                     if _is_select_multiple(q) and q.list_name in value_relation_layers:
+                        lookup_layer_id = value_relation_layers[q.list_name]
+                        lookup_layer = project.mapLayer(lookup_layer_id)
+                        layer_source = lookup_layer.source() if lookup_layer is not None else ""
+                        layer_name = lookup_layer.name() if lookup_layer is not None else ""
+                        layer_provider = lookup_layer.providerType() if lookup_layer is not None else "ogr"
                         layer.setEditorWidgetSetup(
                             idx,
                             QgsEditorWidgetSetup(
@@ -1066,7 +1129,10 @@ def _write_qgis_project_pyqgis(
                                     "AllowNull": True,
                                     "FilterExpression": "",
                                     "Key": "code",
-                                    "Layer": value_relation_layers[q.list_name],
+                                    "Layer": lookup_layer_id,
+                                    "LayerName": layer_name,
+                                    "LayerSource": layer_source,
+                                    "LayerProviderName": layer_provider,
                                     "NofColumns": 1,
                                     "OrderByValue": False,
                                     "UseCompleter": False,
@@ -1080,6 +1146,11 @@ def _write_qgis_project_pyqgis(
                             idx,
                             QgsEditorWidgetSetup("ValueMap", {"map": label_to_code}),
                         )
+                elif _is_image(q):
+                    layer.setEditorWidgetSetup(
+                        idx,
+                        QgsEditorWidgetSetup("ExternalResource", _external_resource_widget_config()),
+                    )
 
             project.addMapLayer(layer, False)
             root.addLayer(layer)

@@ -19,6 +19,8 @@ The converter is schema-only. It does not import submissions.
   - project CRS `EPSG:4326`
   - OSM XYZ basemap (configured as `EPSG:3785`)
   - picklists (`ValueMap`) from XLSForm `choices`
+  - multi-select picklists (`ValueRelation`) for `select_multiple`
+  - photo capture widgets (`ExternalResource`) for XLSForm `image` fields
 - Includes a PyQGIS validator script for project integrity checks
 
 ## Files
@@ -88,6 +90,11 @@ GeoPackage output includes:
 - generated feature/attribute tables
 - `xlsform_field_metadata` (question metadata)
 
+Photo fields:
+
+- XLSForm `image` questions are exported as text attributes plus QGIS `ExternalResource` form widgets.
+- In Mergin Maps, captured photos are stored as project attachments and the corresponding field stores the relative file path.
+
 ## Troubleshooting
 
 - `Validation error: ...`:
@@ -95,6 +102,9 @@ GeoPackage output includes:
   - check required columns (`type`, `name`, etc.)
 - Empty picklists in Mergin Maps:
   - regenerate project with latest script so ValueMap config is refreshed
+- Multi-select list is empty in Mergin Maps:
+  - ensure you regenerated with the latest script (uses `ValueRelation` + lookup layer for `select_multiple`)
+- Photo captured but field stays NULL:
+  - ensure you regenerated with the latest script (writes explicit `ExternalResource` storage config)
 - Disconnected layer in QGIS:
   - ensure `.qgs` and `.gpkg` stay together in the same folder
-

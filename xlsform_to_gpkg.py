@@ -895,6 +895,58 @@ def _is_image(question: Question | None) -> bool:
     return _question_base_type(question.question_type) == "image"
 
 
+def _temporal_kind(question: Question | None) -> str | None:
+    if question is None:
+        return None
+    base = _question_base_type(question.question_type)
+    if base in {"date", "time", "dateTime"}:
+        return base
+    return None
+
+
+def _datetime_widget_config(kind: str) -> dict[str, object]:
+    if kind == "date":
+        return {
+            "allow_null": True,
+            "calendar_popup": True,
+            "display_format": "yyyy-MM-dd",
+            "field_format": "yyyy-MM-dd",
+            "field_iso_format": False,
+        }
+    if kind == "time":
+        return {
+            "allow_null": True,
+            "calendar_popup": False,
+            "display_format": "HH:mm:ss",
+            "field_format": "HH:mm:ss",
+            "field_iso_format": False,
+        }
+    return {
+        "allow_null": True,
+        "calendar_popup": True,
+        "display_format": "yyyy-MM-dd HH:mm:ss",
+        "field_format": "yyyy-MM-dd HH:mm:ss",
+        "field_iso_format": False,
+    }
+
+
+def _append_datetime_xml_config(option_root: ET.Element, kind: str) -> None:
+    cfg = _datetime_widget_config(kind)
+    for key, value in cfg.items():
+        if isinstance(value, bool):
+            ET.SubElement(
+                option_root,
+                "Option",
+                {"name": key, "type": "bool", "value": "true" if value else "false"},
+            )
+        else:
+            ET.SubElement(
+                option_root,
+                "Option",
+                {"name": key, "type": "QString", "value": str(value)},
+            )
+
+
 def _external_resource_widget_config() -> dict[str, object]:
     return {
         "DocumentViewer": 1,
@@ -959,9 +1011,12 @@ def _append_field_configuration(
 
         field_el = ET.SubElement(field_config, "field", {"name": field.name, "configurationFlags": "NoFlag"})
         widget_type = "TextEdit"
+        temporal_kind = _temporal_kind(question)
 
         if _is_image(question):
             widget_type = "ExternalResource"
+        elif temporal_kind:
+            widget_type = "DateTime"
         elif question and question.list_name and question.list_name in choices:
             widget_type = "ValueMap"
 
@@ -994,6 +1049,8 @@ def _append_field_configuration(
                 )
         elif widget_type == "ExternalResource":
             _append_external_resource_xml_config(option_root)
+        elif widget_type == "DateTime" and temporal_kind:
+            _append_datetime_xml_config(option_root, temporal_kind)
 
 
 def _qgs_vector_maplayer(
@@ -1150,6 +1207,11 @@ def _write_qgis_project_pyqgis(
                     layer.setEditorWidgetSetup(
                         idx,
                         QgsEditorWidgetSetup("ExternalResource", _external_resource_widget_config()),
+                    )
+                elif _temporal_kind(q):
+                    layer.setEditorWidgetSetup(
+                        idx,
+                        QgsEditorWidgetSetup("DateTime", _datetime_widget_config(_temporal_kind(q) or "dateTime")),
                     )
 
             project.addMapLayer(layer, False)

@@ -15,12 +15,17 @@ The converter is schema-only. It does not import submissions.
   - `geopoint` -> `POINT`
   - `geotrace` -> `LINESTRING`
   - `geoshape` -> `POLYGON`
+- Supports temporal question types:
+  - `date`
+  - `time`
+  - `dateTime`
 - Builds QGIS project with:
   - project CRS `EPSG:4326`
   - OSM XYZ basemap (configured as `EPSG:3785`)
   - picklists (`ValueMap`) from XLSForm `choices`
   - multi-select picklists (`ValueRelation`) for `select_multiple`
   - photo capture widgets (`ExternalResource`) for XLSForm `image` fields
+  - temporal input widgets (`DateTime`) for `date`, `time`, `dateTime`
 - Includes a PyQGIS validator script for project integrity checks
 
 ## Files
@@ -95,6 +100,14 @@ Photo fields:
 - XLSForm `image` questions are exported as text attributes plus QGIS `ExternalResource` form widgets.
 - In Mergin Maps, captured photos are stored as project attachments and the corresponding field stores the relative file path.
 
+Temporal fields:
+
+- `date`, `time`, and `dateTime` are stored as text attributes and configured with QGIS `DateTime` form widgets.
+- Widget formats currently used:
+  - `date` -> `yyyy-MM-dd`
+  - `time` -> `HH:mm:ss`
+  - `dateTime` -> `yyyy-MM-dd HH:mm:ss`
+
 ## Troubleshooting
 
 - `Validation error: ...`:
@@ -106,5 +119,7 @@ Photo fields:
   - ensure you regenerated with the latest script (uses `ValueRelation` + lookup layer for `select_multiple`)
 - Photo captured but field stays NULL:
   - ensure you regenerated with the latest script (writes explicit `ExternalResource` storage config)
+- Date/time widgets not shown:
+  - ensure you regenerated with the latest script (writes `DateTime` editor config for temporal fields)
 - Disconnected layer in QGIS:
   - ensure `.qgs` and `.gpkg` stay together in the same folder

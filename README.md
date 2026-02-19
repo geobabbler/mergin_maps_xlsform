@@ -19,6 +19,7 @@ The converter is schema-only. It does not import submissions.
   - `date`
   - `time`
   - `dateTime`
+- Supports conditional visibility via XLSForm `relevant`
 - Builds QGIS project with:
   - project CRS `EPSG:4326`
   - OSM XYZ basemap (configured as `EPSG:3785`)
@@ -26,6 +27,7 @@ The converter is schema-only. It does not import submissions.
   - multi-select picklists (`ValueRelation`) for `select_multiple`
   - photo capture widgets (`ExternalResource`) for XLSForm `image` fields
   - temporal input widgets (`DateTime`) for `date`, `time`, `dateTime`
+  - field visibility rules from `relevant` (QGIS tab layout containers)
 - Includes a PyQGIS validator script for project integrity checks
 
 ## Files
@@ -73,6 +75,19 @@ python validate_project_pyqgis.py street_sign_points_project.qgs \
   --expect-osm-crs EPSG:3785
 ```
 
+## Sample Forms and Outputs
+
+The repository includes a set of progressively richer sample XLSForms.  
+Each sample has an associated generated GeoPackage and QGIS project.
+
+| Sample XLSForm | Purpose | Generated GeoPackage | Generated QGIS Project |
+| --- | --- | --- | --- |
+| `street_sign_points_sample.xlsx` | Baseline point survey (`geopoint`, `select_one`, `integer`) | `street_sign_points_project.gpkg` | `street_sign_points_project.qgs` |
+| `street_sign_points_sample_select_multiple.xlsx` | Adds `select_multiple` support (multi-select via `ValueRelation`) | `street_sign_points_select_multiple_project.gpkg` | `street_sign_points_select_multiple_project.qgs` |
+| `street_sign_points_sample_with_image.xlsx` | Adds photo capture (`image` -> `ExternalResource`) | `street_signs_photo_project.gpkg` | `street_signs_photo_project.qgs` |
+| `street_sign_points_sample_temporal.xlsx` | Adds temporal fields (`date`, `time`, `dateTime`) | `street_sign_points_temporal_project.gpkg` | `street_sign_points_temporal_project.qgs` |
+| `street_sign_points_sample_relevant.xlsx` | Adds conditional visibility using `relevant` | `street_sign_points_relevant_project.gpkg` | `street_sign_points_relevant_project.qgs` |
+
 ## Environment Notes
 
 - The converter can run without PyQGIS.
@@ -108,6 +123,15 @@ Temporal fields:
   - `time` -> `HH:mm:ss`
   - `dateTime` -> `yyyy-MM-dd HH:mm:ss`
 
+Relevant (conditional visibility):
+
+- `relevant` expressions are translated to QGIS visibility expressions on form field containers.
+- Currently supported expression patterns:
+  - `${field} = 'value'`
+  - `${field} != 'value'`
+  - `${field} != ''`
+  - combinations with `and` / `or`
+
 ## Troubleshooting
 
 - `Validation error: ...`:
@@ -121,5 +145,8 @@ Temporal fields:
   - ensure you regenerated with the latest script (writes explicit `ExternalResource` storage config)
 - Date/time widgets not shown:
   - ensure you regenerated with the latest script (writes `DateTime` editor config for temporal fields)
+- Relevant logic not applied:
+  - ensure you regenerated with the latest script (form layout switches to `tablayout` and writes visibility expressions)
+  - verify `relevant` expressions use currently supported patterns
 - Disconnected layer in QGIS:
   - ensure `.qgs` and `.gpkg` stay together in the same folder

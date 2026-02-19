@@ -930,6 +930,28 @@ def _datetime_widget_config(kind: str) -> dict[str, object]:
     }
 
 
+def _translate_relevant_expression(
+    relevant: str | None,
+    question_to_field: dict[str, str],
+) -> str | None:
+    """Translate a simple XLSForm relevant expression to a QGIS expression."""
+    if not relevant:
+        return None
+
+    expr = relevant.strip()
+    if not expr:
+        return None
+
+    def repl(match: re.Match[str]) -> str:
+        qname = match.group(1)
+        field_name = question_to_field.get(qname, qname)
+        return f'"{field_name}"'
+
+    expr = re.sub(r"\$\{([A-Za-z0-9_]+)\}", repl, expr)
+    expr = expr.replace(" and ", " AND ").replace(" or ", " OR ")
+    return expr
+
+
 def _append_datetime_xml_config(option_root: ET.Element, kind: str) -> None:
     cfg = _datetime_widget_config(kind)
     for key, value in cfg.items():
@@ -1116,8 +1138,13 @@ def _write_qgis_project_pyqgis(
     try:
         from qgis.core import (
             QgsApplication,
+            QgsAttributeEditorContainer,
+            QgsAttributeEditorField,
             QgsCoordinateReferenceSystem,
+            QgsEditFormConfig,
             QgsEditorWidgetSetup,
+            QgsExpression,
+            QgsOptionalExpression,
             QgsProject,
             QgsRasterLayer,
             QgsVectorLayer,
@@ -1213,6 +1240,38 @@ def _write_qgis_project_pyqgis(
                         idx,
                         QgsEditorWidgetSetup("DateTime", _datetime_widget_config(_temporal_kind(q) or "dateTime")),
                     )
+
+            # Build explicit form layout so we can apply per-field visibility from XLSForm relevant.
+            ef = layer.editFormConfig()
+            ef.setLayout(QgsEditFormConfig.TabLayout)
+            root_container = ef.invisibleRootContainer()
+            root_container.clear()
+            main_container = QgsAttributeEditorContainer("Main", root_container)
+            root_container.addChildElement(main_container)
+
+            question_to_field: dict[str, str] = {}
+            for field in schema.fields:
+                q = field.source_question
+                if q:
+                    question_to_field[q.name] = field.name
+
+            for field in schema.fields:
+                idx = layer.fields().indexFromName(field.name)
+                if idx < 0:
+                    continue
+                q = field.source_question
+                field_container = QgsAttributeEditorContainer(field.name, main_container)
+                qgs_relevant = _translate_relevant_expression(q.relevant if q else None, question_to_field)
+                if qgs_relevant:
+                    field_container.setVisibilityExpression(
+                        QgsOptionalExpression(QgsExpression(qgs_relevant), True)
+                    )
+                field_container.addChildElement(
+                    QgsAttributeEditorField(field.name, idx, field_container)
+                )
+                main_container.addChildElement(field_container)
+
+            layer.setEditFormConfig(ef)
 
             project.addMapLayer(layer, False)
             root.addLayer(layer)

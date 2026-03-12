@@ -1,0 +1,13 @@
+# Sample configuration for deploy_survey.py
+# Usage:
+#   python deploy_survey.py --config deploy.sample.yml
+
+workspace: your-workspace
+xlsform: street_sign_points_sample_relevant.xlsx
+project_name: street_signs_field_survey
+overwrite: false
+
+mergin:
+  url: https://app.merginmaps.com
+  username: your-username
+  password: your-password
